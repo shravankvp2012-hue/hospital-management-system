@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { UserRole } from '@/types/database';
 import {
   LayoutDashboard,
   Users,
@@ -9,9 +10,10 @@ import {
   LogOut,
   Receipt,
   BarChart3,
+  ShieldCheck,
 } from 'lucide-react';
 
-export type Page = 'dashboard' | 'patients' | 'doctors' | 'appointments' | 'billing' | 'analytics';
+export type Page = 'dashboard' | 'patients' | 'doctors' | 'appointments' | 'billing' | 'analytics' | 'master';
 
 interface NavItem {
   id: Page;
@@ -26,12 +28,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'appointments', label: 'Appointments', icon: CalendarDays },
   { id: 'billing', label: 'Billing', icon: Receipt },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'master', label: 'Master administration', icon: ShieldCheck },
 ];
 
 interface SidebarProps {
   current: Page;
   onNavigate: (page: Page) => void;
-  role?: 'admin' | 'doctor' | 'receptionist';
+  role?: UserRole;
   fullName?: string;
   onSignOut?: () => void;
 }
@@ -87,7 +90,7 @@ export function Sidebar({ current, onNavigate, role = 'admin', fullName = 'Admin
         </div>
 
         <nav className="flex-1 space-y-1.5 px-4 py-4">
-          {NAV_ITEMS.filter((item) => role !== 'doctor' || item.id !== 'doctors').map((item) => {
+          {NAV_ITEMS.filter((item) => (item.id !== 'master' || role === 'master') && (role !== 'doctor' || item.id !== 'doctors')).map((item) => {
             const Icon = item.icon;
             const active = current === item.id;
             return (

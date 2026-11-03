@@ -5,7 +5,7 @@ export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 export type DoctorStatus = 'active' | 'on_leave' | 'inactive';
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
-export type UserRole = 'admin' | 'doctor' | 'receptionist';
+export type UserRole = 'master' | 'admin' | 'manager' | 'doctor' | 'receptionist' | 'billing';
 
 export interface Patient {
   id: string;
@@ -63,6 +63,9 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   doctor_id: string | null;
+  account_status: 'active' | 'disabled';
+  must_change_password: boolean;
+  created_by: string | null;
   created_at: string;
 }
 
