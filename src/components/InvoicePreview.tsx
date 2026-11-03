@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Printer, Download, X, Activity } from 'lucide-react';
 import { Button } from '@/components/Button';
 import type { InvoiceWithRelations } from '@/types/database';
@@ -19,6 +20,16 @@ function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount);
 }
 
+function escapeHTML(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] ?? character);
+}
+
 function buildPrintHTML(invoice: InvoiceWithRelations): string {
   const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.amount), 0);
   const discount = 0;
@@ -26,15 +37,15 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
   const grandTotal = subtotal - discount + tax;
   const amountPaid = invoice.status === 'paid' ? grandTotal : 0;
   const balanceDue = grandTotal - amountPaid;
-  const patientName = fullName(invoice.patient.first_name, invoice.patient.last_name);
-  const serviceDesc = invoice.appointment?.reason ?? 'General Consultation';
-  const serviceDate = invoice.appointment ? formatDate(invoice.appointment.appointment_date) : formatDate(invoice.date_issued);
-  const statusLabel = INVOICE_STATUS_LABELS[invoice.status];
+  const patientName = escapeHTML(fullName(invoice.patient.first_name, invoice.patient.last_name));
+  const serviceDesc = escapeHTML(invoice.appointment?.reason ?? 'General Consultation');
+  const serviceDate = escapeHTML(invoice.appointment ? formatDate(invoice.appointment.appointment_date) : formatDate(invoice.date_issued));
+  const statusLabel = escapeHTML(INVOICE_STATUS_LABELS[invoice.status]);
   const statusColor = invoice.status === 'paid' ? '#065f46' : invoice.status === 'unpaid' ? '#991b1b' : '#92400e';
   const statusBg = invoice.status === 'paid' ? '#d1fae5' : invoice.status === 'unpaid' ? '#fee2e2' : '#fef3c7';
 
   const rows = invoice.items.map((item) => {
-    const desc = `${INVOICE_ITEM_CATEGORY_LABELS[item.category]} — ${item.description}`;
+    const desc = escapeHTML(`${INVOICE_ITEM_CATEGORY_LABELS[item.category]} — ${item.description}`);
     const amt = Number(item.amount);
     return `<tr>
       <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b">${desc}</td>
@@ -51,7 +62,7 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${invoice.invoice_number} — MediCore Hospital</title>
+<title>${escapeHTML(invoice.invoice_number)} — MediCore Hospital</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px 20px; }
@@ -87,9 +98,13 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
   .invoice-footer p { font-size: 13px; color: #64748b; }
   .invoice-footer .contact { font-size: 11px; color: #94a3b8; margin-top: 8px; }
   @media print {
-    body { background: #fff; padding: 0; }
+    @page { size: auto; margin: 0.5in; }
+    html, body { background: #fff; }
+    body { padding: 0; }
     .invoice-sheet { box-shadow: none; border-radius: 0; max-width: 100%; }
-    @page { margin: 0.5in; }
+    .invoice-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .status-badge, .paid-stamp span { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table, tr, .totals-section, .paid-stamp, .invoice-footer { break-inside: avoid; page-break-inside: avoid; }
   }
 </style>
 </head>
@@ -105,7 +120,7 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
       </div>
       <div class="invoice-title">
         <h1>INVOICE</h1>
-        <p>${invoice.invoice_number}</p>
+        <p>${escapeHTML(invoice.invoice_number)}</p>
       </div>
     </div>
     <div class="invoice-body">
@@ -123,7 +138,7 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
           <div class="info-label">Bill To</div>
           <div class="info-value">
             <strong>${patientName}</strong><br/>
-            Patient ID: ${invoice.patient.id}<br/>
+            Patient ID: ${escapeHTML(invoice.patient.id)}<br/>
             Service: ${serviceDesc}<br/>
             Service Date: ${serviceDate}
           </div>
@@ -131,7 +146,7 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
         <div class="info-block">
           <div class="info-label">Invoice Details</div>
           <div class="info-value">
-            <strong>Invoice #:</strong> ${invoice.invoice_number}<br/>
+            <strong>Invoice #:</strong> ${escapeHTML(invoice.invoice_number)}<br/>
             <strong>Issued:</strong> ${formatDate(invoice.date_issued)}<br/>
             ${invoice.due_date ? `<strong>Due:</strong> ${formatDate(invoice.due_date)}<br/>` : ''}
             <strong>Status:</strong> <span class="status-badge">${statusLabel}</span>
@@ -160,7 +175,7 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
         <div class="totals-row balance"><span>Balance Due</span><span>${formatINR(balanceDue)}</span></div>
       </div>
       ${invoice.status === 'paid' ? '<div class="paid-stamp"><span>PAID</span></div>' : ''}
-      ${invoice.notes ? `<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:8px;font-size:13px;color:#64748b;"><strong>Notes:</strong> ${invoice.notes}</div>` : ''}
+      ${invoice.notes ? `<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:8px;font-size:13px;color:#64748b;"><strong>Notes:</strong> ${escapeHTML(invoice.notes)}</div>` : ''}
     </div>
     <div class="invoice-footer">
       <p>Thank you for choosing ${HOSPITAL_INFO.name}.</p>
@@ -172,6 +187,8 @@ function buildPrintHTML(invoice: InvoiceWithRelations): string {
 }
 
 export function InvoicePreview({ invoice, onClose }: InvoicePreviewProps) {
+  const [printing, setPrinting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.amount), 0);
   const discount = 0;
   const tax = 0;
@@ -184,16 +201,41 @@ export function InvoicePreview({ invoice, onClose }: InvoicePreviewProps) {
   const statusLabel = INVOICE_STATUS_LABELS[invoice.status];
   const statusClass = invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : invoice.status === 'unpaid' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-amber-50 text-amber-700 ring-amber-200';
 
-  function handlePrint() {
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
+  async function handlePrint() {
+    if (printing) return;
+
+    setExportError('');
+    setPrinting(true);
+    const printWindow = window.open('', '_blank', 'popup,width=900,height=700');
     if (!printWindow) {
-      alert('Please allow pop-ups to print the invoice.');
+      setPrinting(false);
+      setExportError('The print window was blocked. Allow pop-ups for this site and try again.');
       return;
     }
-    printWindow.document.write(buildPrintHTML(invoice));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    const closePrintWindow = () => {
+      setPrinting(false);
+      if (!printWindow.closed) printWindow.close();
+    };
+
+    try {
+      printWindow.document.open();
+      printWindow.document.write(buildPrintHTML(invoice));
+      printWindow.document.close();
+      printWindow.addEventListener('afterprint', closePrintWindow, { once: true });
+      await new Promise<void>((resolve) => {
+        printWindow.requestAnimationFrame(() => {
+          printWindow.requestAnimationFrame(() => resolve());
+        });
+      });
+      await printWindow.document.fonts.ready;
+      if (printWindow.closed) throw new Error('The print window was closed before printing.');
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      closePrintWindow();
+      setExportError('The invoice could not be prepared for printing. Please try again.');
+    }
   }
 
   return (
@@ -204,11 +246,12 @@ export function InvoicePreview({ invoice, onClose }: InvoicePreviewProps) {
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">Invoice Preview</h2>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handlePrint}><Printer className="h-4 w-4" />Print Invoice</Button>
-            <Button size="sm" variant="secondary" onClick={handlePrint}><Download className="h-4 w-4" />Save as PDF</Button>
-            <Button size="sm" variant="secondary" onClick={onClose}><X className="h-4 w-4" />Close</Button>
+            <Button type="button" size="sm" onClick={handlePrint} disabled={printing}><Printer className="h-4 w-4" />{printing ? 'Preparing...' : 'Print Invoice'}</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={handlePrint} disabled={printing}><Download className="h-4 w-4" />Save as PDF</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onClose} disabled={printing}><X className="h-4 w-4" />Close</Button>
           </div>
         </div>
+        {exportError && <div role="alert" className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700">{exportError}</div>}
 
         {/* Invoice content */}
         <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-6 sm:px-8 sm:py-8">
