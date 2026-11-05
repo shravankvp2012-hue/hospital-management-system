@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Activity, ArrowRight, LockKeyhole, Mail } from 'lucide-react';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Field';
@@ -23,8 +24,10 @@ export function Login() {
         return;
       }
       const { error: setupError } = await supabase.functions.invoke('manage-users', { body: { action: 'bootstrap_master', fullName: fullName.trim(), email: email.trim(), password } });
-      if (setupError) setError('Initial setup is unavailable or has already been completed.');
-      else {
+      if (setupError) {
+        const serverMessage = setupError instanceof FunctionsHttpError ? await setupError.context.json().then((body: { error?: unknown }) => body.error, () => undefined) : undefined;
+        setError(typeof serverMessage === 'string' ? serverMessage : 'Initial setup could not be completed. Please try again.');
+      } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (signInError) setError('The Master account was created, but automatic sign-in failed. Please sign in again.');
       }
