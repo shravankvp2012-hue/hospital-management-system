@@ -18,11 +18,6 @@ export function Login() {
     setSubmitting(true);
     setError('');
     if (setupMode) {
-      if (!fullName.trim() || password.length < 10) {
-        setError('Enter your name and a password of at least 10 characters.');
-        setSubmitting(false);
-        return;
-      }
       const { error: setupError } = await supabase.functions.invoke('manage-users', { body: { action: 'bootstrap_master', fullName: fullName.trim(), email: email.trim(), password } });
       if (setupError) {
         const serverMessage = setupError instanceof FunctionsHttpError ? await setupError.context.json().then((body: { error?: unknown }) => body.error, () => undefined) : undefined;
@@ -63,9 +58,9 @@ export function Login() {
               <p className="mt-3 text-sm leading-6 text-slate-500">{setupMode ? 'Create the first Master account for this hospital workspace.' : 'Use the credentials provided by your hospital administrator to continue.'}</p>
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
                 {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Your full name</span><Input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="e.g. Dr. Anita Rao" /></label>}
-                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Email address</span><div className="relative"><Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@medicorehospital.com" className="pl-10" /></div></label>
-                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">{setupMode ? 'Master password' : 'Password'}</span><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" className="pl-10" /></div></label>
+                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Your full name</span><Input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="e.g. Dr. Anita Rao" /><span className="mt-2 block text-xs text-slate-500">Shown on your account and in the staff list.</span></label>}
+                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Email address</span><div className="relative"><Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@medicorehospital.com" className="pl-10" /></div>{setupMode && <span className="mt-2 block text-xs text-slate-500">This becomes your sign-in email.</span>}</label>
+                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">{setupMode ? 'Master password' : 'Password'}</span><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={setupMode ? 'At least 10 characters' : 'Enter your password'} className="pl-10" /></div>{setupMode && <span className="mt-2 block text-xs text-slate-500">Use at least 10 characters. You will use this to sign in.</span>}</label>
                 <Button type="submit" className="w-full" disabled={submitting}>{submitting ? (setupMode ? 'Creating workspace...' : 'Signing in...') : (setupMode ? 'Create Master account' : 'Sign in')}<ArrowRight className="h-4 w-4" /></Button>
               </form>
               <button type="button" onClick={() => { setSetupMode(!setupMode); setError(''); }} className="mt-6 w-full text-center text-sm font-medium text-slate-500 hover:text-slate-900">{setupMode ? 'Back to staff sign in' : 'First time setting up MediCore?'}</button>
