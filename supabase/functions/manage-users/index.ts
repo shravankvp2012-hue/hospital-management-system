@@ -59,7 +59,7 @@ Deno.serve(async (request: Request) => {
     if (action === "bootstrap_master") {
       const email = body.email?.trim().toLowerCase();
       const fullName = body.fullName?.trim();
-      if (!email || !fullName || !body.password || body.password.length < 10) return response({ error: "Name, email, and a password of at least 10 characters are required." }, 400);
+      if (!email || !fullName || !body.password || body.password.length < 8) return response({ error: "Name, email, and a password of at least 8 characters are required." }, 400);
       const { data: claim, error: claimError } = await serviceClient.from("master_bootstrap").update({ claimed_at: new Date().toISOString() }).eq("id", true).is("claimed_at", null).select("id").maybeSingle();
       if (claimError || !claim) return response({ error: "Initial Master setup has already been completed." }, 409);
       const { data: created, error: createError } = await serviceClient.auth.admin.createUser({ email, password: body.password, email_confirm: true, user_metadata: { full_name: fullName } });
