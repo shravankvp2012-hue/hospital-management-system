@@ -5,7 +5,8 @@ export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 export type DoctorStatus = 'active' | 'on_leave' | 'inactive';
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
-export type UserRole = 'master' | 'admin' | 'manager' | 'doctor' | 'receptionist' | 'billing';
+export type UserRole = 'master' | 'admin' | 'manager' | 'doctor' | 'receptionist' | 'billing' | 'nurse' | 'pharmacist' | 'laboratory_technician' | 'accountant' | 'staff';
+export type AccountStatus = 'active' | 'disabled';
 
 export interface Patient {
   id: string;
@@ -61,12 +62,31 @@ export interface DoctorAvailability {
 export interface Profile {
   id: string;
   full_name: string;
+  username: string;
   role: UserRole;
   doctor_id: string | null;
-  account_status: 'active' | 'disabled';
+  account_status: AccountStatus;
   must_change_password: boolean;
+  department: string | null;
+  phone_number: string | null;
   created_by: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface ManagedUser {
+  id: string;
+  fullName: string;
+  username: string;
+  email: string;
+  role: UserRole;
+  doctorId: string | null;
+  accountStatus: AccountStatus;
+  mustChangePassword: boolean;
+  department: string | null;
+  phoneNumber: string | null;
+  createdAt: string;
+  lastSignInAt: string | null;
 }
 
 export interface Doctor { 

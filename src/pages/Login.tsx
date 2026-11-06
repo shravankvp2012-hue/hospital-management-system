@@ -1,37 +1,90 @@
 import { FormEvent, useState } from 'react';
-import { Activity, ArrowRight, LockKeyhole, Mail } from 'lucide-react';
-import { FunctionsHttpError } from '@supabase/supabase-js';
+import { Activity, ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { invokeManageUsers } from '@/lib/manageUsers';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Field';
+
+interface SessionTokens {
+  session: { access_token: string; refresh_token: string };
+}
+
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 
 export function Login() {
   const [setupMode, setSetupMode] = useState(false);
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [setupCode, setSetupCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  function switchMode() {
+    setSetupMode(!setupMode);
+    setError('');
+    setNotice('');
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+  }
+
+  async function handleSignIn() {
+    const { data, error: signInError } = await invokeManageUsers<SessionTokens>({ action: 'sign_in', username: username.trim().toLowerCase(), password });
+    if (signInError || !data) {
+      setError(signInError ?? 'Something went wrong. Please try again.');
+      return;
+    }
+    const { error: sessionError } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    if (sessionError) setError('We could not start your session. Please try again.');
+  }
+
+  async function handleSetup() {
+    if (password !== confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+    const { error: setupError } = await invokeManageUsers({
+      action: 'bootstrap_master',
+      fullName: fullName.trim(),
+      username: username.trim().toLowerCase(),
+      email: email.trim(),
+      password,
+      setupCode: setupCode.trim(),
+    });
+    if (setupError) {
+      setError(setupError);
+      return;
+    }
+    setSetupMode(false);
+    setFullName('');
+    setEmail('');
+    setSetupCode('');
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setNotice('Your Master account is ready. Sign in with your username and password.');
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError('');
-    if (setupMode) {
-      const { error: setupError } = await supabase.functions.invoke('manage-users', { body: { action: 'bootstrap_master', fullName: fullName.trim(), email: email.trim(), password } });
-      if (setupError) {
-        const serverMessage = setupError instanceof FunctionsHttpError ? await setupError.context.json().then((body: { error?: unknown }) => body.error, () => undefined) : undefined;
-        setError(typeof serverMessage === 'string' ? serverMessage : 'Initial setup could not be completed. Please try again.');
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (signInError) setError('The Master account was created, but automatic sign-in failed. Please sign in again.');
-      }
-    } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (signInError) setError('The email or password is incorrect. Please try again.');
-    }
+    setNotice('');
+    if (setupMode) await handleSetup();
+    else await handleSignIn();
     setSubmitting(false);
   }
+
+  const passwordToggle = (
+    <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-700">
+      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
+  );
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-900 sm:px-6">
@@ -54,16 +107,20 @@ export function Login() {
             <div className="mb-10 flex items-center gap-3 lg:hidden"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-teal-500 text-white"><Activity className="h-5 w-5" /></div><div><p className="font-bold text-slate-900">MediCore</p><p className="text-xs text-slate-500">Hospital Management</p></div></div>
             <div className="max-w-md">
               <p className="text-sm font-semibold text-cyan-600">Staff portal</p>
-              <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Welcome back</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-500">{setupMode ? 'Create the first Master account for this hospital workspace.' : 'Use the credentials provided by your hospital administrator to continue.'}</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{setupMode ? 'Set up Master access' : 'Welcome back'}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{setupMode ? 'Create the first Master account for this hospital workspace. You need the one-time setup code to continue.' : 'Sign in with the username and password your hospital administrator gave you.'}</p>
+              {notice && <div role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
                 {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Your full name</span><Input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="e.g. Dr. Anita Rao" /><span className="mt-2 block text-xs text-slate-500">Shown on your account and in the staff list.</span></label>}
-                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Email address</span><div className="relative"><Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@medicorehospital.com" className="pl-10" /></div>{setupMode && <span className="mt-2 block text-xs text-slate-500">This becomes your sign-in email.</span>}</label>
-                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">{setupMode ? 'Master password' : 'Password'}</span><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={setupMode ? 'At least 8 characters' : 'Enter your password'} className="pl-10" /></div>{setupMode && <span className="mt-2 block text-xs text-slate-500">Use at least 8 characters. You will use this to sign in.</span>}</label>
-                <Button type="submit" className="w-full" disabled={submitting}>{submitting ? (setupMode ? 'Creating workspace...' : 'Signing in...') : (setupMode ? 'Create Master account' : 'Sign in')}<ArrowRight className="h-4 w-4" /></Button>
+                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Full name</span><Input required value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="e.g. Dr. Anita Rao" /></label>}
+                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Username</span><div className="relative"><UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="e.g. anita.rao" className="pl-10" pattern={setupMode ? USERNAME_PATTERN.source : undefined} title={setupMode ? 'Use 3 to 32 lowercase letters, numbers, dots, dashes, or underscores.' : undefined} /></div>{setupMode && <span className="mt-2 block text-xs text-slate-500">3 to 32 lowercase letters, numbers, dots, dashes, or underscores. You will sign in with this.</span>}</label>
+                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Email address</span><Input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@medicorehospital.com" /><span className="mt-2 block text-xs text-slate-500">Used for account recovery and hospital notices.</span></label>}
+                <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Password</span><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required autoComplete={setupMode ? 'new-password' : 'current-password'} type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={setupMode ? 'At least 8 characters' : 'Enter your password'} className="pl-10 pr-11" />{passwordToggle}</div>{setupMode && <span className="mt-2 block text-xs text-slate-500">At least 8 characters. Avoid using a password you use elsewhere.</span>}</label>
+                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Confirm password</span><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter the password" className="pl-10 pr-11" /></div></label>}
+                {setupMode && <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">One-time setup code</span><div className="relative"><ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input required autoComplete="off" value={setupCode} onChange={(event) => setSetupCode(event.target.value)} placeholder="Code provided during deployment" className="pl-10" /></div><span className="mt-2 block text-xs text-slate-500">This code works once. It is required only for the first Master account.</span></label>}
+                <Button type="submit" className="w-full" disabled={submitting}>{submitting ? (setupMode ? 'Creating account...' : 'Signing in...') : (setupMode ? 'Create Master account' : 'Sign in')}<ArrowRight className="h-4 w-4" /></Button>
               </form>
-              <button type="button" onClick={() => { setSetupMode(!setupMode); setError(''); }} className="mt-6 w-full text-center text-sm font-medium text-slate-500 hover:text-slate-900">{setupMode ? 'Back to staff sign in' : 'First time setting up MediCore?'}</button>
+              <button type="button" onClick={switchMode} className="mt-6 w-full text-center text-sm font-medium text-slate-500 hover:text-slate-900">{setupMode ? 'Back to staff sign in' : 'First time setting up MediCore?'}</button>
             </div>
           </div>
         </div>
